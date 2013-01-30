@@ -32,6 +32,7 @@
                         <li>GnuTLSPGPCertificateFile</li>
                         <li>GnuTLSPGPKeyFile</li>
                         <li>GnuTLSClientVerify</li>
+                        <li>GnuTLSClientVerifyMethod</li>
                         <li>GnuTLSClientCAFile</li>
                         <li>GnuTLSPGPKeyringFile</li>
                         <li>GnuTLSEnable</li>
@@ -213,7 +214,7 @@
                 server config, virtual host, directory, .htaccess<br />
             </div>
             <p>This directive controls the use of SSL Client Certificate Authentication.<br />
-            If used in the .htaccess context, it can force TLS re-negotiation.</p>
+            If used in the .htaccess or directory contexts, it can force TLS re-negotiation.</p>
             <p>
                 <b>ignore</b><br />
                 mod_gnutls will ignore the contents of any SSL Client Certificates sent.<br />
@@ -225,6 +226,35 @@
                 <b>require</b><br />
                 A Client certificate will be required. Any requests without a valid client certificate will be denied.<br />
                 The SSL_CLIENT_VERIFY environment variable will only be set to "SUCCESS".
+            </p>
+            <h4>GnuTLSClientVerifyMethod</h4>
+            <div class="directive">
+                <h5>Description:</h5>Client Certificate Verification Method<br />
+                <h5>Syntax:</h5>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                GnuTLSClientVerifyMethod [ <i>cartel</i> | <i>msva</i> ]<br />
+                <h5>Default:</h5>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                <i>cartel</i><br />
+                <h5>Context:</h5>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                server config, virtual host<br />
+            </div>
+            <p>This directive controls how any supplied client
+            certificate is verified by the web server.<br />
+            Depending on this choice, different environment variables
+            may be exposed to any CGI scripts.
+            <p>
+                <b>cartel</b><br /> When the client presents an X.509
+                certificate, mod_gnutls will verify it against a list
+                of "trusted" X.509 root certificate authorities.  You
+                need to specify GnuTLSClientCAFile.<br /> When the
+                client presents an OpenPGP certificate, mod_gnutls
+                will verify it against a list of "trusted" OpenPGP
+                certificates.  You need to specify
+                GnuTLSPGPKeyringFile.
+                <b>msva</b><br /> Use a running Monkeysphere
+                Validation Agent to verify the identity of the client.
+                If this is set, and a client is successfully
+                validated, the validated identity will be stored in the
+                "user" field of the Apache request object.
             </p>
             <h4>GnuTLSClientCAFile</h4>
             <div class="directive">
@@ -239,6 +269,7 @@
             <p>
                Takes an absolute or relative path to a PEM Encoded Certificate to use as a Certificate Authority with Client Certificate Authentication.<br />
                This file may contain a list of trusted authorities.<br />
+               This directive is only relevant if GnuTLSClientVerifyMethod is set to x509pki.
             </p>
             <h4>GnuTLSPGPKeyringFile</h4>
             <div class="directive">
