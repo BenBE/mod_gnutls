@@ -48,6 +48,8 @@ static void mgs_add_common_pgpcert_vars(request_rec * r, gnutls_openpgp_crt_t ce
 static const char* mgs_x509_construct_uid(request_rec * pool, gnutls_x509_crt_t cert);
 static int mgs_status_hook(request_rec *r, int flags);
 
+static int mgs_handle_ocsp_stapling(gnutls_session_t session, void *ptr, gnutls_datum_t *ocsp_response);
+
 /* Pool Cleanup Function */
 apr_status_t mgs_cleanup_pre_config(void *data) {
 	/* Free all session data */
@@ -143,6 +145,10 @@ static int mgs_select_virtual_server_cb(gnutls_session_t session) {
 	}
 
     gnutls_certificate_server_set_request(session, ctxt->sc->client_verify_mode);
+
+    if(GNUTLS_ENABLED_TRUE == ctxt->sc->stapling_enabled) {
+        gnutls_certificate_set_ocsp_status_request_function(ctxt->sc->certs, mgs_handle_ocsp_stapling, ctxt);
+    }
 
     /* Set Anon credentials */
     gnutls_credentials_set(session, GNUTLS_CRD_CERTIFICATE, ctxt->sc->certs);
@@ -1547,3 +1553,6 @@ static int mgs_status_hook(request_rec *r, int flags)
     return OK;
 }
 
+int mgs_handle_ocsp_stapling (gnutls_session_t session, void *ptr, gnutls_datum_t *ocsp_response) {
+    return GNUTLS_E_NO_CERTIFICATE_STATUS;
+}
