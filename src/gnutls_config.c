@@ -694,6 +694,12 @@ static mgs_srvconf_rec *_mgs_config_server_create(apr_pool_t * p, char** err) {
 /* this relies on GnuTLS never changing the gnutls_certificate_request_t enum to define -1 */
     sc->client_verify_mode = -1;
 
+    /* OCSP stapling */
+    sc->stapling_enabled = GNUTLS_ENABLED_UNSET;
+    sc->stapling_expire = 0;
+    sc->stapling_response.data = NULL;
+    sc->stapling_response.size = 0;
+
     return sc;
 }
 
@@ -730,6 +736,8 @@ void *mgs_config_server_merge(apr_pool_t *p, void *BASE, void *ADD) {
     gnutls_srvconf_merge(cache_config, NULL);
     gnutls_srvconf_merge(cache_provider, NULL);
     gnutls_srvconf_merge(cache_context, NULL);
+
+    gnutls_srvconf_merge(stapling_enabled, GNUTLS_ENABLED_UNSET);
 
     /* FIXME: the following items are pre-allocated, and should be
      * properly disposed of before assigning in order to avoid leaks;
