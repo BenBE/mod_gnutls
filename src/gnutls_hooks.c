@@ -146,10 +146,6 @@ static int mgs_select_virtual_server_cb(gnutls_session_t session) {
 
     gnutls_certificate_server_set_request(session, ctxt->sc->client_verify_mode);
 
-    if(GNUTLS_ENABLED_TRUE == ctxt->sc->stapling_enabled) {
-        gnutls_certificate_set_ocsp_status_request_function(ctxt->sc->certs, mgs_handle_ocsp_stapling, ctxt);
-    }
-
     /* Set Anon credentials */
     gnutls_credentials_set(session, GNUTLS_CRD_CERTIFICATE, ctxt->sc->certs);
 	/* Set x509 credentials */
@@ -161,6 +157,16 @@ static int mgs_select_virtual_server_cb(gnutls_session_t session) {
         gnutls_credentials_set(session, GNUTLS_CRD_SRP, ctxt->sc->srp_creds);
     }
 #endif
+
+    if(GNUTLS_ENABLED_TRUE == ctxt->sc->stapling_enabled) {
+        server_rec *s = ctxt->c->base_server;
+
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                "Setting up OCSP status request function for '%s:%d'.",
+                s->server_hostname, s->port);
+
+        gnutls_certificate_set_ocsp_status_request_function(ctxt->sc->certs, mgs_handle_ocsp_stapling, ctxt);
+    }
 
     /* update the priorities - to avoid negotiating a ciphersuite that is not
      * enabled on this virtual server. Note that here we ignore the version
@@ -1553,6 +1559,35 @@ static int mgs_status_hook(request_rec *r, int flags)
     return OK;
 }
 
-int mgs_handle_ocsp_stapling (gnutls_session_t session, void *ptr, gnutls_datum_t *ocsp_response) {
+int mgs_handle_ocsp_stapling (gnutls_session_t session, void *ptr, gnutls_datum_t *ocsp_response)
+{
+    if(!ocsp_response) {
+        return GNUTLS_E_INVALID_REQUEST;
+    }
+
+    if(!ptr) {
+        return GNUTLS_E_INVALID_REQUEST;
+    }
+
+    mgs_handle_t* ctxt = (mgs_handle_t *)ptr;
+
+    mgs_srvconf_rec* sc = ctxt->sc;
+    if(!sc) {
+        return GNUTLS_E_INVALID_REQUEST;
+    }
+
+    if(GNUTLS_ENABLED_TRUE != sc->stapling_enabled) {
+        return GNUTLS_E_NO_CERTIFICATE_STATUS;
+    }
+
+    server_rec* s = ctxt->c->base_server;
+    if(!s) {
+        return GNUTLS_E_INVALID_REQUEST;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+            "Querying OCSP status for '%s:%d'.",
+            s->server_hostname, s->port);
+
     return GNUTLS_E_NO_CERTIFICATE_STATUS;
 }
