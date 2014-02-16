@@ -28,8 +28,10 @@ CHECK_APACHE(,$AP_VERSION,
 )
 
 PKG_CHECK_MODULES([LIBGNUTLS], [gnutls >= 2.12.6])
-
 LIBGNUTLS_VERSION=`pkg-config --modversion gnutls`
+
+PKG_CHECK_MODULES([LIBCURL], [libcurl >= 7.32.0])
+LIBCURL_VERSION=`pkg-config --modversion libcurl`
 
 AC_ARG_ENABLE(srp,
        AS_HELP_STRING([--disable-srp],
@@ -80,6 +82,7 @@ echo ""
 echo "   * mod_gnutls version:	${MOD_GNUTLS_VERSION}"
 echo "   * Apache Modules directory:	${AP_LIBEXECDIR}"
 echo "   * GnuTLS Library version:	${LIBGNUTLS_VERSION}"
+echo "   * cURL Library version:	${LIBCURL_VERSION}"
 echo "   * SRP Authentication:          ${use_srp}"
 echo "   * MSVA Client Verification:    ${use_msva}"
 echo ""
