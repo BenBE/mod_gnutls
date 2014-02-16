@@ -726,6 +726,7 @@ static void create_gnutls_handle(conn_rec * c) {
 
     /* Set this config for this connection */
     ap_set_module_config(c->conn_config, &gnutls_module, ctxt);
+
     /* Set pull, push & ptr functions */
     gnutls_transport_set_pull_function(ctxt->session,
             mgs_transport_read);
@@ -1561,33 +1562,129 @@ static int mgs_status_hook(request_rec *r, int flags)
 
 int mgs_handle_ocsp_stapling (gnutls_session_t session, void *ptr, gnutls_datum_t *ocsp_response)
 {
+    /* Is there space for us to store the result? */
     if(!ocsp_response) {
         return GNUTLS_E_INVALID_REQUEST;
     }
+    ocsp_response->size = 0;
+    ocsp_response->data = NULL;
 
+    /* Is there a valid context from which we are called? */
     if(!ptr) {
         return GNUTLS_E_INVALID_REQUEST;
     }
 
     mgs_handle_t* ctxt = (mgs_handle_t *)ptr;
 
+    /* Read the server configuration */
     mgs_srvconf_rec* sc = ctxt->sc;
     if(!sc) {
         return GNUTLS_E_INVALID_REQUEST;
     }
 
+    /* Does the configuration tell us to staple OCSP status responses? */
     if(GNUTLS_ENABLED_TRUE != sc->stapling_enabled) {
         return GNUTLS_E_NO_CERTIFICATE_STATUS;
     }
 
+    /* What's the internal server we belong to? */
     server_rec* s = ctxt->c->base_server;
     if(!s) {
         return GNUTLS_E_INVALID_REQUEST;
     }
 
+    /* Log we are doing some internal OCSP response querying */
     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
             "Querying OCSP status for '%s:%d'.",
             s->server_hostname, s->port);
+
+    /* Check for a fresh cache entry) */
+    apr_time_t current_time = apr_time_now();
+    if(current_time <= sc->stapling_expire) {
+        /* Fresh enough, don't do any further verification */
+        if(!sc->stapling_response.data || !sc->stapling_response.size) {
+            /* No response cached, but don't schedule a cache refresh either */
+            /* This ensures we won't query the OCSP server on every request
+               when there's nothing to report. This can happen when the OCSP server
+               is temporarily unavailable after startup or when our cached
+               response finally expired. */
+            return GNUTLS_E_NO_CERTIFICATE_STATUS;
+        }
+
+        /* Allocate enough memory for GnuTLS to receive a copy of the
+           cached OCSP status response */
+        ocsp_response->size = sc->stapling_response.size;
+        ocsp_response->data = gnutls_malloc(ocsp_response->size);
+
+        if(!ocsp_response->data) {
+            ocsp_response->size = 0;
+            /* Log we are doing some internal OCSP response querying */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                    "No cached OCSP status response while waiting for "
+                    "rate limitting to expire for '%s:%d'.",
+                    s->server_hostname, s->port);
+            return GNUTLS_E_NO_CERTIFICATE_STATUS;
+        }
+
+        /* We got a cached response, we got memory, let's return everything */
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                "Serviced OCSP status response from cache for '%s:%d'.",
+                s->server_hostname, s->port);
+        memcpy(ocsp_response->data, sc->stapling_response.data, ocsp_response->size);
+        return GNUTLS_E_SUCCESS;
+    }
+
+    /* So cache is expired. Thus we will ensure to reduce the number
+       of requests to external resources as much as possible. */
+    sc->stapling_expire = current_time + apr_time_from_sec(60);
+
+    /* Check if the cached OCSP status response has already expired */
+    if(sc->stapling_response.data) {
+        apr_time_t cache_expire = modgnutls_ocsp_response_get_next_update(sc->stapling_response);
+
+        if((0 == cache_expire) || (cache_expire < current_time)) {
+            sc->stapling_response.data = NULL;
+            sc->stapling_response.size = 0;
+
+            /* We got a cached response, we got memory, let's return everything */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                    "Could not determine next update timestamp of cached OCSP status response for '%s:%d'.",
+                    s->server_hostname, s->port);
+
+            return GNUTLS_E_NO_CERTIFICATE_STATUS;
+        }
+
+        /* We have cached response that should be refreshed but which is still valid anyway.
+           So for better performance return the old response and update the cache. */
+        sc->stapling_expire = (current_time + apr_time_from_sec(600) > cache_expire) ? cache_expire : (current_time + apr_time_from_sec(600));
+    }
+
+    /* Initiate (possibly asynchronous) update of cached OCSP status response */
+    modgnutls_ocsp_response_update_cache(ctxt, sc);
+
+    if(sc->stapling_response.data) {
+        /* Allocate enough memory for GnuTLS to receive a copy of the
+           cached OCSP status response */
+        ocsp_response->size = sc->stapling_response.size;
+        ocsp_response->data = gnutls_malloc(ocsp_response->size);
+
+        if(!ocsp_response->data) {
+            ocsp_response->size = 0;
+            /* Log we are doing some internal OCSP response querying */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                    "No cached OCSP status response while waiting for "
+                    "rate limitting to expire for '%s:%d'.",
+                    s->server_hostname, s->port);
+            return GNUTLS_E_NO_CERTIFICATE_STATUS;
+        }
+
+        /* We got a cached response, we got memory, let's return everything */
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                "Serviced OCSP status response from cache for '%s:%d'.",
+                s->server_hostname, s->port);
+        memcpy(ocsp_response->data, sc->stapling_response.data, ocsp_response->size);
+        return GNUTLS_E_SUCCESS;
+    }
 
     return GNUTLS_E_NO_CERTIFICATE_STATUS;
 }
