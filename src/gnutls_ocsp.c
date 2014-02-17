@@ -283,6 +283,53 @@ modgnutls_ocsp_response_update_cache(mgs_handle_t* ctxt, mgs_srvconf_rec *sc)
                     s->server_hostname, s->port);
             return;
         }
+
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                "Signature validation succeeded; checking if response belongs to our OCSP status request for '%s:%d'.",
+                s->server_hostname, s->port);
+
+        {
+            int resp_for_req = 0 == 0;
+
+            gnutls_datum_t ocsp_req_nonce;
+            gnutls_ocsp_req_t ocsp_req;
+
+            gnutls_datum_t ocsp_resp_nonce;
+            gnutls_ocsp_resp_t ocsp_resp;
+
+            resp_for_req &= GNUTLS_E_SUCCESS == gnutls_ocsp_req_init(&ocsp_req);
+            resp_for_req &= GNUTLS_E_SUCCESS == gnutls_ocsp_req_import (ocsp_req, &req);
+            resp_for_req &= GNUTLS_E_SUCCESS == gnutls_ocsp_req_get_nonce(ocsp_req, NULL, &ocsp_req_nonce);
+            gnutls_ocsp_req_deinit(ocsp_req);
+
+            resp_for_req &= GNUTLS_E_SUCCESS == gnutls_ocsp_resp_init(&ocsp_resp);
+            resp_for_req &= GNUTLS_E_SUCCESS == gnutls_ocsp_resp_import(ocsp_resp, &resp);
+            resp_for_req &= GNUTLS_E_SUCCESS == gnutls_ocsp_resp_get_nonce(ocsp_resp, NULL, &ocsp_resp_nonce);
+            gnutls_ocsp_resp_deinit(ocsp_resp);
+
+            /* Both Nonce values should match */
+            resp_for_req &= !memcmp(
+                    ocsp_req_nonce.data,
+                    ocsp_resp_nonce.data,
+                    ocsp_req_nonce.size <= ocsp_resp_nonce.size ?
+                        ocsp_req_nonce.size :
+                        ocsp_resp_nonce.size
+                    );
+
+            if(ocsp_resp_nonce.data) {
+                gnutls_free(ocsp_resp_nonce.data);
+            }
+            if(ocsp_req_nonce.data) {
+                gnutls_free(ocsp_req_nonce.data);
+            }
+
+            if(!resp_for_req) {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                        "OCSP response does not seem to match the OCSP request we sent for '%s:%d'.",
+                        s->server_hostname, s->port);
+                return;
+            }
+        }
     }
 
     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
