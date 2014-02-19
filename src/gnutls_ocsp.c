@@ -14,6 +14,10 @@
 #include <sys/stat.h>
 #include <errno.h>
 
+#ifdef APLOG_USE_MODULE
+APLOG_USE_MODULE(gnutls);
+#endif
+
 static int
 _generate_request (gnutls_datum_t * rdata, gnutls_x509_crt_t cert,
                    gnutls_x509_crt_t issuer);
