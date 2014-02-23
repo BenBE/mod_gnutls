@@ -48,6 +48,25 @@
 APLOG_USE_MODULE(gnutls);
 #endif
 
+char *mgs_util_bin2hex_p(apr_pool_t *p, char *buf, int len) {
+    static const char *hexdigits = "0123456789ABCDEF";
+
+    apr_size_t i;
+
+    char *result = apr_pcalloc(p, 1 + 2 * len);
+    if(!result) {
+        return result;
+    }
+
+    for(i = 0; i < len; i++) {
+        result[2*i+0] = hexdigits[(buf[i] >> 4) & 0x0F];
+        result[2*i+1] = hexdigits[(buf[i] >> 0) & 0x0F];
+    }
+
+    result[2*len] = 0;
+    return result;
+}
+
 char *mgs_session_id2sz(unsigned char *id, int idlen,
         char *str, int strsize) {
     char *cp;
@@ -72,8 +91,9 @@ static int mgs_session_id2dbm(conn_rec * c, unsigned char *id, int idlen,
     char *sz;
 
     sz = mgs_session_id2sz(id, idlen, buf, sizeof (buf));
-    if (sz == NULL)
+    if (sz == NULL) {
         return -1;
+    }
 
     dbmkey->dptr =
             apr_psprintf(c->pool, "%s:%d.%s",
@@ -90,7 +110,6 @@ char *mgs_time2sz(time_t in_time, char *str, int strsize) {
     apr_time_exp_t vtm;
     apr_size_t ret_size;
     apr_time_t t;
-
 
     apr_time_ansi_put(&t, in_time);
     apr_time_exp_gmt(&vtm, t);

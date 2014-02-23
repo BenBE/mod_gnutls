@@ -744,9 +744,7 @@ int mgs_hook_pre_connection(conn_rec * c, void *csd) {
 }
 
 int mgs_hook_fixups(request_rec * r) {
-    unsigned char sbuf[GNUTLS_MAX_SESSION_ID];
-    char buf[AP_IOBUFSIZE];
-    const char *tmp;
+    char *tmp;
     size_t len;
     mgs_handle_t *ctxt;
     int rv = OK;
@@ -786,8 +784,8 @@ int mgs_hook_fixups(request_rec * r) {
 
 #ifdef ENABLE_SRP
     if (ctxt->sc->srp_tpasswd_conf_file != NULL && ctxt->sc->srp_tpasswd_file != NULL) {
-        tmp = gnutls_srp_server_get_username(ctxt->session);
-        apr_table_setn(env, "SSL_SRP_USER", (tmp != NULL) ? tmp : "");
+        const char* tmp2 = gnutls_srp_server_get_username(ctxt->session);
+        apr_table_setn(env, "SSL_SRP_USER", tmp2 ? tmp2 : "");
     } else {
         apr_table_unset(env, "SSL_SRP_USER");
     }
@@ -812,16 +810,17 @@ int mgs_hook_fixups(request_rec * r) {
         apr_table_setn(env, "SSL_DH_PRIME_BITS", tmp);
     }
 
-    len = sizeof (sbuf);
-    gnutls_session_get_id(ctxt->session, sbuf, &len);
-    tmp = mgs_session_id2sz(sbuf, len, buf, sizeof (buf));
-    apr_table_setn(env, "SSL_SESSION_ID", apr_pstrdup(r->pool, tmp));
+    len = GNUTLS_MAX_SESSION_ID;
+    tmp = apr_pcalloc(r->pool, len);
+    gnutls_session_get_id(ctxt->session, (unsigned char*)tmp, &len);
+    tmp = mgs_util_bin2hex_p(r->pool, tmp, len);
+    apr_table_setn(env, "SSL_SESSION_ID", tmp);
 
     if (gnutls_certificate_type_get(ctxt->session) == GNUTLS_CRT_X509) {
-		mgs_add_common_cert_vars(r, ctxt->sc->certs_x509_chain[0], 0, ctxt->sc->export_certificates_size);
-	} else if (gnutls_certificate_type_get(ctxt->session) == GNUTLS_CRT_OPENPGP) {
+        mgs_add_common_cert_vars(r, ctxt->sc->certs_x509_chain[0], 0, ctxt->sc->export_certificates_size);
+    } else if (gnutls_certificate_type_get(ctxt->session) == GNUTLS_CRT_OPENPGP) {
         mgs_add_common_pgpcert_vars(r, ctxt->sc->cert_pgp, 0, ctxt->sc->export_certificates_size);
-	}
+    }
 
     return rv;
 }
@@ -837,9 +836,7 @@ int mgs_hook_authz(request_rec * r) {
     dc = ap_get_module_config(r->per_dir_config, &gnutls_module);
 
     _gnutls_log(debug_log_fp, "%s: %d\n", __func__, __LINE__);
-    ctxt =
-            ap_get_module_config(r->connection->conn_config,
-            &gnutls_module);
+    ctxt = ap_get_module_config(r->connection->conn_config, &gnutls_module);
 
     if (!ctxt || ctxt->session == NULL) {
         return DECLINED;
@@ -900,9 +897,7 @@ int mgs_hook_authz(request_rec * r) {
 #define MGS_SIDE(suffix) ((side==0) ? "SSL_SERVER" suffix : "SSL_CLIENT" suffix)
 
 static void mgs_add_common_cert_vars(request_rec * r, gnutls_x509_crt_t cert, int side, int export_cert_size) {
-    unsigned char sbuf[64]; /* buffer to hold serials */
-    char buf[AP_IOBUFSIZE];
-    const char *tmp;
+    char *tmp;
     char *tmp2;
     size_t len;
     int ret, i;
@@ -937,18 +932,23 @@ static void mgs_add_common_cert_vars(request_rec * r, gnutls_x509_crt_t cert, in
         }
     }
 
-    len = sizeof (buf);
-    gnutls_x509_crt_get_dn(cert, buf, &len);
-    apr_table_setn(env, MGS_SIDE("_S_DN"), apr_pstrmemdup(r->pool, buf, len));
+    len = AP_IOBUFSIZE;
+    tmp = apr_pcalloc(r->pool, len);
+    gnutls_x509_crt_get_dn(cert, tmp, &len);
+    apr_table_setn(env, MGS_SIDE("_S_DN"),
+            apr_pstrmemdup(r->pool, tmp, len));
 
-    len = sizeof (buf);
-    gnutls_x509_crt_get_issuer_dn(cert, buf, &len);
-    apr_table_setn(env, MGS_SIDE("_I_DN"), apr_pstrmemdup(r->pool, buf, len));
+    len = AP_IOBUFSIZE;
+    tmp = apr_pcalloc(r->pool, len);
+    gnutls_x509_crt_get_issuer_dn(cert, tmp, &len);
+    apr_table_setn(env, MGS_SIDE("_I_DN"),
+            apr_pstrmemdup(r->pool, tmp, len));
 
-    len = sizeof (sbuf);
-    gnutls_x509_crt_get_serial(cert, sbuf, &len);
-    tmp = mgs_session_id2sz(sbuf, len, buf, sizeof (buf));
-    apr_table_setn(env, MGS_SIDE("_M_SERIAL"), apr_pstrdup(r->pool, tmp));
+    len = 64;
+    tmp = apr_pcalloc(r->pool, len);
+    gnutls_x509_crt_get_serial(cert, (unsigned char*)tmp, &len);
+    tmp = mgs_util_bin2hex_p(r->pool, tmp, len);
+    apr_table_setn(env, MGS_SIDE("_M_SERIAL"), tmp);
 
     ret = gnutls_x509_crt_get_version(cert);
     if (ret > 0)
@@ -957,15 +957,17 @@ static void mgs_add_common_cert_vars(request_rec * r, gnutls_x509_crt_t cert, in
 
     apr_table_setn(env, MGS_SIDE("_CERT_TYPE"), "X.509");
 
-    tmp =
-            mgs_time2sz(gnutls_x509_crt_get_expiration_time
-            (cert), buf, sizeof (buf));
-    apr_table_setn(env, MGS_SIDE("_V_END"), apr_pstrdup(r->pool, tmp));
+    tmp = apr_pcalloc(r->pool, 64);
+    tmp = mgs_time2sz(
+            gnutls_x509_crt_get_expiration_time(cert),
+            tmp, 64);
+    apr_table_setn(env, MGS_SIDE("_V_END"), tmp);
 
-    tmp =
-            mgs_time2sz(gnutls_x509_crt_get_activation_time
-            (cert), buf, sizeof (buf));
-    apr_table_setn(env, MGS_SIDE("_V_START"), apr_pstrdup(r->pool, tmp));
+    tmp = apr_pcalloc(r->pool, 64);
+    tmp = mgs_time2sz(
+            gnutls_x509_crt_get_activation_time(cert),
+            tmp, 64);
+    apr_table_setn(env, MGS_SIDE("_V_START"), tmp);
 
     ret = gnutls_x509_crt_get_signature_algorithm(cert);
     if (ret >= 0) {
@@ -1019,10 +1021,7 @@ static void mgs_add_common_cert_vars(request_rec * r, gnutls_x509_crt_t cert, in
  * to use for the PEM-encoded certificate (0 means do not export)
  */
 static void mgs_add_common_pgpcert_vars(request_rec * r, gnutls_openpgp_crt_t cert, int side, int export_cert_size) {
-
-	unsigned char sbuf[64]; /* buffer to hold serials */
-    char buf[AP_IOBUFSIZE];
-    const char *tmp;
+    char *tmp;
     size_t len;
     int ret;
 
@@ -1037,55 +1036,57 @@ static void mgs_add_common_pgpcert_vars(request_rec * r, gnutls_openpgp_crt_t ce
         ret = gnutls_openpgp_crt_export(cert, GNUTLS_OPENPGP_FMT_BASE64, NULL, &len);
         if (ret == GNUTLS_E_SHORT_MEMORY_BUFFER) {
             if (len >= export_cert_size) {
-                apr_table_setn(env, MGS_SIDE("_CERT"),
-                               "GNUTLS_CERTIFICATE_SIZE_LIMIT_EXCEEDED");
+                apr_table_setn(env,
+                    MGS_SIDE("_CERT"),
+                    "GNUTLS_CERTIFICATE_SIZE_LIMIT_EXCEEDED");
                 ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                              "GnuTLS: Failed to export too-large OpenPGP certificate to environment");
+                    "GnuTLS: Failed to export too-large OpenPGP certificate to environment");
             } else {
-                char* cert_buf = apr_palloc(r->pool, len + 1);
+                char* cert_buf = apr_pcalloc(r->pool, len + 1);
                 if (cert_buf != NULL && gnutls_openpgp_crt_export(cert, GNUTLS_OPENPGP_FMT_BASE64, cert_buf, &len) >= 0) {
                     cert_buf[len] = 0;
                     apr_table_setn(env, MGS_SIDE("_CERT"), cert_buf);
                 } else {
                     ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                                  "GnuTLS: failed to export OpenPGP certificate");
+                            "GnuTLS: failed to export OpenPGP certificate");
                 }
             }
         } else {
             ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "GnuTLS: dazed and confused about OpenPGP certificate size");
+                    "GnuTLS: dazed and confused about OpenPGP certificate size");
         }
     }
 
-    len = sizeof (buf);
-    gnutls_openpgp_crt_get_name(cert, 0, buf, &len);
-    apr_table_setn(env, MGS_SIDE("_NAME"), apr_pstrmemdup(r->pool, buf, len));
-
-    len = sizeof (sbuf);
-    gnutls_openpgp_crt_get_fingerprint(cert, sbuf, &len);
-    tmp = mgs_session_id2sz(sbuf, len, buf, sizeof (buf));
-    apr_table_setn(env, MGS_SIDE("_FINGERPRINT"), apr_pstrdup(r->pool, tmp));
+    len = 32;
+    tmp = apr_pcalloc(r->pool, len);
+    gnutls_openpgp_crt_get_fingerprint(cert, tmp, &len);
+    tmp = mgs_util_bin2hex_p(r->pool, tmp, len);
+    apr_table_setn(env, MGS_SIDE("_FINGERPRINT"), tmp);
 
     ret = gnutls_openpgp_crt_get_version(cert);
-    if (ret > 0)
-        apr_table_setn(env, MGS_SIDE("_M_VERSION"),
-                       apr_psprintf(r->pool, "%u", ret));
+    if (ret > 0) {
+        apr_table_setn(env, MGS_SIDE("_M_VERSION"), apr_psprintf(r->pool, "%u", ret));
+    }
 
     apr_table_setn(env, MGS_SIDE("_CERT_TYPE"), "OPENPGP");
 
-    tmp =
-            mgs_time2sz(gnutls_openpgp_crt_get_expiration_time
-            (cert), buf, sizeof (buf));
-    apr_table_setn(env, MGS_SIDE("_V_END"), apr_pstrdup(r->pool, tmp));
+    tmp = apr_pcalloc(r->pool, 64);
+    tmp = mgs_time2sz(
+            gnutls_openpgp_crt_get_expiration_time(cert),
+            tmp, 64);
+    apr_table_setn(env, MGS_SIDE("_V_END"), tmp);
 
-    tmp =
-            mgs_time2sz(gnutls_openpgp_crt_get_creation_time
-            (cert), buf, sizeof (buf));
-    apr_table_setn(env, MGS_SIDE("_V_START"), apr_pstrdup(r->pool, tmp));
+    tmp = apr_pcalloc(r->pool, 64);
+    tmp = mgs_time2sz(
+            gnutls_openpgp_crt_get_creation_time(cert),
+            tmp, 64);
+    apr_table_setn(env, MGS_SIDE("_V_START"), tmp);
 
     ret = gnutls_openpgp_crt_get_pk_algorithm(cert, NULL);
     if (ret >= 0) {
-        apr_table_setn(env, MGS_SIDE("_A_KEY"), gnutls_pk_algorithm_get_name(ret));
+        apr_table_setn(env,
+                MGS_SIDE("_A_KEY"),
+                gnutls_pk_algorithm_get_name(ret));
     }
 
 }
