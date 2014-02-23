@@ -705,7 +705,7 @@ static void create_gnutls_handle(conn_rec * c) {
     }
 
     /* Set Default Priority */
-	gnutls_priority_set_direct (ctxt->session, "NORMAL", NULL);
+    gnutls_priority_set_direct (ctxt->session, "NORMAL", NULL);
     /* Set Handshake function */
     gnutls_handshake_set_post_client_hello_function(ctxt->session,
             mgs_select_virtual_server_cb);

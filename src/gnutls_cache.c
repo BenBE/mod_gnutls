@@ -19,14 +19,6 @@
 
 #include "mod_gnutls.h"
 
-#if HAVE_APR_MEMCACHE
-#include "apr_memcache.h"
-#endif
-
-#include "apr_dbm.h"
-
-#include "ap_mpm.h"
-
 #include <unistd.h>
 #include <sys/types.h>
 
@@ -37,8 +29,6 @@
 /* it seems the default has some strange errors. Use SDBM
  */
 #define MC_TAG "mod_gnutls:"
-#define MC_TAG_LEN sizeof(MC_TAG)
-#define STR_SESSION_LEN (GNUTLS_SESSION_ID_STRING_LEN + MC_TAG_LEN)
 
 #if MODULE_MAGIC_NUMBER_MAJOR < 20081201
 #define ap_unixd_config unixd_config

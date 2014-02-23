@@ -28,6 +28,8 @@
 #include "apr_tables.h"
 #include "ap_release.h"
 #include "apr_fnmatch.h"
+#include "ap_provider.h"
+#include "ap_socache.h"
 /* GnuTLS Library Headers */
 #include <gnutls/gnutls.h>
 #if GNUTLS_VERSION_MAJOR == 2
@@ -78,6 +80,7 @@ typedef enum {
 	/* Use Memcache */
     mgs_cache_memcache,
 #endif
+    mgs_cache_enabled,
     mgs_cache_unset
 } mgs_cache_e;
 
@@ -135,7 +138,13 @@ typedef struct {
     int cache_timeout;
 	/* Chose Cache Type */
     mgs_cache_e cache_type;
+	/* The configuration to initialize the cache */
     const char* cache_config;
+	/* The Provider of the Cache implementation */
+    const ap_socache_provider_t *cache_provider;
+	/* Our Cache Instance and its context */
+    ap_socache_instance_t *cache_context;
+
     const char* srp_tpasswd_file;
     const char* srp_tpasswd_conf_file;
 	/* A list of CA Certificates */
