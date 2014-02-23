@@ -310,13 +310,12 @@ char *mgs_util_bin2hex_p(apr_pool_t *p, char *buf, int len);
 
 /**
  * Convert a SSL Session ID into a Null Terminated Hex Encoded String
+ * @param c The connection this session belongs to
  * @param id raw SSL Session ID
  * @param idlen Length of the raw Session ID
- * @param str Location to store the Hex Encoded String
- * @param strsize The Maximum Length that can be stored in str
+ * @param key Location to store the string with the lookup key
  */
-char *mgs_session_id2sz(unsigned char *id, int idlen,
-                                char *str, int strsize);
+int mgs_session_id2sz(conn_rec *c, char *id, int idlen, gnutls_datum_t *key);
 
 /**
  * Convert a time_t into a Null Terminated String
