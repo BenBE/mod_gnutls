@@ -163,7 +163,7 @@ static const command_rec mgs_config_cmds[] = {
     NULL,
     RSRC_CONF,
     "Cache Timeout"),
-    AP_INIT_TAKE12("GnuTLSCache", mgs_set_cache,
+    AP_INIT_TAKE1("GnuTLSCache", mgs_set_cache,
     NULL,
     RSRC_CONF,
     "Cache Configuration"),

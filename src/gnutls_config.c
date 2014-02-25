@@ -300,8 +300,10 @@ const char *mgs_set_srp_tpasswd_conf_file(cmd_parms * parms, void *dummy,
 #endif
 
 const char *mgs_set_cache(cmd_parms * parms, void *dummy,
-        const char *type, const char *arg) {
+        const char *arg) {
+
     const char *err;
+
     mgs_srvconf_rec *sc =
             ap_get_module_config(parms->server->module_config,
             &gnutls_module);
@@ -309,34 +311,58 @@ const char *mgs_set_cache(cmd_parms * parms, void *dummy,
         return err;
     }
 
-    if (strcasecmp("none", type) == 0) {
+    const char *arg_provider = arg;
+    char *arg_config = ap_strchr_c(arg, ':');
+    if (arg_config) {
+        arg_provider = apr_pstrmemdup(parms->pool, arg, arg_config - arg);
+        arg_config++;
+    }
+
+    if (strcasecmp("none", arg_provider) == 0) {
         sc->cache_type = mgs_cache_none;
         sc->cache_config = NULL;
+        sc->cache_provider = NULL;
+        sc->cache_context = NULL;
         return NULL;
-    } else if (strcasecmp("dbm", type) == 0) {
-        sc->cache_type = mgs_cache_dbm;
-    } else if (strcasecmp("gdbm", type) == 0) {
-        sc->cache_type = mgs_cache_gdbm;
-    }
-#if HAVE_APR_MEMCACHE
-    else if (strcasecmp("memcache", type) == 0) {
-        sc->cache_type = mgs_cache_memcache;
-    }
-#endif
-    else {
-        return "Invalid Type for GnuTLSCache!";
     }
 
-    if (arg == NULL)
-        return "Invalid argument 2 for GnuTLSCache!";
+    sc->cache_provider = ap_lookup_provider(
+            AP_SOCACHE_PROVIDER_GROUP,
+            arg_provider,
+            AP_SOCACHE_PROVIDER_VERSION);
 
-    if (sc->cache_type == mgs_cache_dbm
-            || sc->cache_type == mgs_cache_gdbm) {
-        sc->cache_config =
-                ap_server_root_relative(parms->pool, arg);
-    } else {
-        sc->cache_config = apr_pstrdup(parms->pool, arg);
+    if(!sc->cache_provider) {
+        apr_array_header_t *name_list;
+
+        const char *all_names;
+
+        /* Build a comma-separated list of all registered provider names: */
+        name_list = ap_list_provider_names(
+                parms->pool,
+                AP_SOCACHE_PROVIDER_GROUP,
+                AP_SOCACHE_PROVIDER_VERSION);
+        all_names = apr_array_pstrcat(parms->pool, name_list, ',');
+
+        return apr_psprintf(parms->pool,
+                "GnuTLSCache: Could not find socache provider '%s' "
+                "(known names: %s). Maybe you need to load the "
+                "appropriate socache module (mod_socache_%s?).",
+                arg_provider, all_names, arg_provider);
     }
+
+    err = sc->cache_provider->create(&sc->cache_context, arg_config, parms->temp_pool, parms->pool);
+    if(err) {
+        return err;
+    }
+
+    if(!sc->cache_context) {
+        return apr_psprintf(parms->pool,
+                "GnuTLSCache: Failed to allocate context for "
+                "socache provider %s.", arg_provider);
+    }
+
+    sc->cache_config = apr_pstrdup(parms->pool, arg_config);
+    sc->cache_type = mgs_cache_enabled;
 
     return NULL;
 }
