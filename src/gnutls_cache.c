@@ -126,7 +126,6 @@ int mgs_cache_store(mgs_handle_t *ctxt, gnutls_datum_t key, gnutls_datum_t data,
 
 gnutls_datum_t mgs_cache_fetch(mgs_handle_t *ctxt, gnutls_datum_t key, apr_time_t* expire) {
     gnutls_datum_t data = {NULL, 0};
-    apr_status_t rv;
 
     if(expire) {
         *expire = 0;
@@ -140,7 +139,7 @@ gnutls_datum_t mgs_cache_fetch(mgs_handle_t *ctxt, gnutls_datum_t key, apr_time_
         return data;
     }
 
-    rv = ctxt->sc->cache_provider->retrieve(
+    ctxt->sc->cache_provider->retrieve(
         ctxt->sc->cache_context,
         ctxt->c->base_server,
         key.data,
@@ -158,7 +157,7 @@ gnutls_datum_t mgs_cache_fetch(mgs_handle_t *ctxt, gnutls_datum_t key, apr_time_
         return data;
     }
 
-    rv = ctxt->sc->cache_provider->retrieve(
+    ctxt->sc->cache_provider->retrieve(
         ctxt->sc->cache_context,
         ctxt->c->base_server,
         key.data,
@@ -183,7 +182,7 @@ int mgs_cache_delete(mgs_handle_t *ctxt, gnutls_datum_t key) {
     return ctxt->sc->cache_provider->remove(
         ctxt->sc->cache_context,
         ctxt->c->base_server,
-        (char*)key.data,
+        key.data,
         key.size,
         ctxt->c->pool
         );
