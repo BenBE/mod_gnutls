@@ -344,7 +344,6 @@ modgnutls_ocsp_response_update_cache(mgs_handle_t* ctxt, mgs_srvconf_rec *sc)
     {
         apr_time_t ocsp_next_update = modgnutls_ocsp_response_get_next_update(resp);
         apr_time_t current_time = apr_time_now();
-        sc->stapling_expire = current_time + apr_time_from_sec(60);
 
         if(current_time > ocsp_next_update) {
             ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
@@ -354,23 +353,7 @@ modgnutls_ocsp_response_update_cache(mgs_handle_t* ctxt, mgs_srvconf_rec *sc)
         }
 
         /* Write new OCSP response into configuration */
-        gnutls_datum_t tmp;
-        tmp.data = sc->stapling_response.data;
-        tmp.size = sc->stapling_response.size;
-
-        sc->stapling_response.data = NULL;
-        sc->stapling_response.size = 0;
-
-        sc->stapling_response.data = resp.data;
-        sc->stapling_response.size = resp.size;
-
-        free(tmp.data);
-
-        if( current_time + apr_time_from_sec(300) > ocsp_next_update ) {
-            sc->stapling_expire = ocsp_next_update;
-        } else {
-            sc->stapling_expire = current_time + apr_time_from_sec(300);
-        }
+        mgs_cache_ocsp_store(ctxt, cert, resp);
     }
 
     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,

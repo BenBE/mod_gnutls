@@ -1598,93 +1598,45 @@ int mgs_handle_ocsp_stapling (gnutls_session_t session, void *ptr, gnutls_datum_
             "Querying OCSP status for '%s:%d'.",
             s->server_hostname, s->port);
 
-    /* Check for a fresh cache entry) */
-    apr_time_t current_time = apr_time_now();
-    if(current_time <= sc->stapling_expire) {
-        /* Fresh enough, don't do any further verification */
-        if(!sc->stapling_response.data || !sc->stapling_response.size) {
-            /* No response cached, but don't schedule a cache refresh either */
-            /* This ensures we won't query the OCSP server on every request
-               when there's nothing to report. This can happen when the OCSP server
-               is temporarily unavailable after startup or when our cached
-               response finally expired. */
-            return GNUTLS_E_NO_CERTIFICATE_STATUS;
-        }
-
-        /* Allocate enough memory for GnuTLS to receive a copy of the
-           cached OCSP status response */
-        ocsp_response->size = sc->stapling_response.size;
-        ocsp_response->data = gnutls_malloc(ocsp_response->size);
-
-        if(!ocsp_response->data) {
-            ocsp_response->size = 0;
-            /* Log we are doing some internal OCSP response querying */
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                    "No cached OCSP status response while waiting for "
-                    "rate limitting to expire for '%s:%d'.",
-                    s->server_hostname, s->port);
-            return GNUTLS_E_NO_CERTIFICATE_STATUS;
-        }
-
-        /* We got a cached response, we got memory, let's return everything */
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                "Serviced OCSP status response from cache for '%s:%d'.",
-                s->server_hostname, s->port);
-        memcpy(ocsp_response->data, sc->stapling_response.data, ocsp_response->size);
-        return GNUTLS_E_SUCCESS;
-    }
-
-    /* So cache is expired. Thus we will ensure to reduce the number
-       of requests to external resources as much as possible. */
-    sc->stapling_expire = current_time + apr_time_from_sec(60);
-
-    /* Check if the cached OCSP status response has already expired */
-    if(sc->stapling_response.data) {
-        apr_time_t cache_expire = modgnutls_ocsp_response_get_next_update(sc->stapling_response);
-
-        if((0 == cache_expire) || (cache_expire < current_time)) {
-            sc->stapling_response.data = NULL;
-            sc->stapling_response.size = 0;
-
-            /* We got a cached response, we got memory, let's return everything */
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                    "Could not determine next update timestamp of cached OCSP status response for '%s:%d'.",
-                    s->server_hostname, s->port);
-
-            return GNUTLS_E_NO_CERTIFICATE_STATUS;
-        }
-
-        /* We have cached response that should be refreshed but which is still valid anyway.
-           So for better performance return the old response and update the cache. */
-        sc->stapling_expire = (current_time + apr_time_from_sec(600) > cache_expire) ? cache_expire : (current_time + apr_time_from_sec(600));
-    }
+    /* Check for a fresh cache entry */
+    gnutls_datum_t cache_response = mgs_cache_ocsp_fetch(ctxt, sc->certs_x509_chain[0]);
 
     /* Initiate (possibly asynchronous) update of cached OCSP status response */
-    modgnutls_ocsp_response_update_cache(ctxt, sc);
+    if(!cache_response.data || !cache_response.size) {
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                "Trying to fetch fresh OCSP response for '%s:%d'.",
+                s->server_hostname, s->port);
+        modgnutls_ocsp_response_update_cache(ctxt, sc);
 
-    if(sc->stapling_response.data) {
-        /* Allocate enough memory for GnuTLS to receive a copy of the
-           cached OCSP status response */
-        ocsp_response->size = sc->stapling_response.size;
-        ocsp_response->data = gnutls_malloc(ocsp_response->size);
-
-        if(!ocsp_response->data) {
-            ocsp_response->size = 0;
-            /* Log we are doing some internal OCSP response querying */
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                    "No cached OCSP status response while waiting for "
-                    "rate limitting to expire for '%s:%d'.",
+        cache_response = mgs_cache_ocsp_fetch(ctxt, sc->certs_x509_chain[0]);
+        if(!cache_response.data || !cache_response.size) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                    "Could not fetch a fresh OCSP response for '%s:%d'.",
                     s->server_hostname, s->port);
+
             return GNUTLS_E_NO_CERTIFICATE_STATUS;
         }
-
-        /* We got a cached response, we got memory, let's return everything */
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                "Serviced OCSP status response from cache for '%s:%d'.",
-                s->server_hostname, s->port);
-        memcpy(ocsp_response->data, sc->stapling_response.data, ocsp_response->size);
-        return GNUTLS_E_SUCCESS;
     }
 
-    return GNUTLS_E_NO_CERTIFICATE_STATUS;
+    /* Allocate enough memory for GnuTLS to receive a copy of the
+       cached OCSP status response */
+    ocsp_response->size = cache_response.size;
+    ocsp_response->data = gnutls_malloc(ocsp_response->size);
+
+    if(!ocsp_response->data) {
+        ocsp_response->size = 0;
+        /* Log we are doing some internal OCSP response querying */
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                "No cached OCSP status response while waiting for "
+                "rate limitting to expire for '%s:%d'.",
+                s->server_hostname, s->port);
+        return GNUTLS_E_NO_CERTIFICATE_STATUS;
+    }
+
+    /* We got a cached response, we got memory, let's return everything */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+            "Serviced OCSP status response from cache for '%s:%d'.",
+            s->server_hostname, s->port);
+    memcpy(ocsp_response->data, cache_response.data, ocsp_response->size);
+    return GNUTLS_E_SUCCESS;
 }

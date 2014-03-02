@@ -696,9 +696,6 @@ static mgs_srvconf_rec *_mgs_config_server_create(apr_pool_t * p, char** err) {
 
     /* OCSP stapling */
     sc->stapling_enabled = GNUTLS_ENABLED_UNSET;
-    sc->stapling_expire = 0;
-    sc->stapling_response.data = NULL;
-    sc->stapling_response.size = 0;
 
     return sc;
 }

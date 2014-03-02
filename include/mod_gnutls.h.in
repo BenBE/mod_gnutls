@@ -159,12 +159,8 @@ typedef struct {
     int proxy_enabled;
 	/* A Plain HTTP request */
     int non_ssl_request;
-    /* Is OCSP stapling enabled? */
+	/* Is OCSP stapling enabled? */
     int stapling_enabled;
-    /* When will the OCSP stapling response expire */
-    apr_time_t stapling_expire;
-    /* What was the last response */
-    gnutls_datum_t stapling_response;
 } mgs_srvconf_rec;
 
 /* Character Buffer */
