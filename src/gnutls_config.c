@@ -736,6 +736,11 @@ void *mgs_config_server_merge(apr_pool_t *p, void *BASE, void *ADD) {
 
     gnutls_srvconf_merge(stapling_enabled, GNUTLS_ENABLED_UNSET);
 
+    gnutls_srvconf_assign(cache_type);
+    gnutls_srvconf_assign(cache_config);
+    gnutls_srvconf_assign(cache_provider);
+    gnutls_srvconf_assign(cache_context);
+
     /* FIXME: the following items are pre-allocated, and should be
      * properly disposed of before assigning in order to avoid leaks;
      * so at the moment, we can't actually have them in the config.
