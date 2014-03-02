@@ -318,6 +318,50 @@ static int mgs_cache_session_delete(void *baton, gnutls_datum_t key) {
     return mgs_cache_delete(ctxt, session_id);
 }
 
+gnutls_datum_t mgs_cache_ocsp_fetch(void *baton, gnutls_x509_crt_t cert) {
+    gnutls_datum_t data = {NULL, 0};
+
+    mgs_handle_t *ctxt = baton;
+    if(!ctxt) {
+        return data;
+    }
+
+    gnutls_datum_t cert_id = {NULL, 0};
+    if(0 > mgs_crt_id2sz(ctxt->c, cert, &cert_id)) {
+        return data;
+    }
+
+    return mgs_cache_fetch(ctxt, cert_id, NULL);
+}
+
+int mgs_cache_ocsp_store(void *baton, gnutls_x509_crt_t cert, gnutls_datum_t data) {
+    mgs_handle_t *ctxt = baton;
+    if(!ctxt) {
+        return -1;
+    }
+
+    gnutls_datum_t cert_id = {NULL, 0};
+    if(0 > mgs_crt_id2sz(ctxt->c, cert, &cert_id)) {
+        return -1;
+    }
+
+    return mgs_cache_store(ctxt, cert_id, data, 0);
+}
+
+int mgs_cache_ocsp_delete(void *baton, gnutls_x509_crt_t cert) {
+    mgs_handle_t *ctxt = baton;
+    if(!ctxt) {
+        return -1;
+    }
+
+    gnutls_datum_t cert_id = {NULL, 0};
+    if(0 > mgs_crt_id2sz(ctxt->c, cert, &cert_id)) {
+        return -1;
+    }
+
+    return mgs_cache_delete(ctxt, cert_id);
+}
+
 int mgs_cache_session_init(mgs_handle_t * ctxt) {
     if (ctxt->sc->cache_type) {
         gnutls_db_set_retrieve_function(ctxt->session,

@@ -433,4 +433,10 @@ void modgnutls_ocsp_response_update_cache(mgs_handle_t* ctxt, mgs_srvconf_rec *s
 
 apr_time_t modgnutls_ocsp_response_get_next_update(gnutls_datum_t resp);
 
+gnutls_datum_t mgs_cache_ocsp_fetch(void *baton, gnutls_x509_crt_t cert);
+
+int mgs_cache_ocsp_store(void *baton, gnutls_x509_crt_t cert, gnutls_datum_t data);
+
+int mgs_cache_ocsp_delete(void *baton, gnutls_x509_crt_t cert);
+
 #endif /*  __mod_gnutls_h_inc */
