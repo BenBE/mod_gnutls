@@ -72,15 +72,9 @@ extern module AP_MODULE_DECLARE_DATA gnutls_module;
 typedef enum {
 	/* No Cache */
     mgs_cache_none,
-	/* Use Old Berkley DB */
-    mgs_cache_dbm,
-	/* Use Gnu's version of Berkley DB */
-    mgs_cache_gdbm,
-#if HAVE_APR_MEMCACHE
-	/* Use Memcache */
-    mgs_cache_memcache,
-#endif
+	/* Some Cache Provider enabled */
     mgs_cache_enabled,
+	/* No Cache set to be used */
     mgs_cache_unset
 } mgs_cache_e;
 
