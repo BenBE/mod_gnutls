@@ -81,6 +81,53 @@ int mgs_session_id2sz(conn_rec *c, char *id, int idlen, gnutls_datum_t *key) {
     return 0;
 }
 
+/* Name the OCSP key as:
+ * server:port:CertID
+ * to allow reusing OCSP responses on different servers (for the same certificate)
+ */
+int mgs_crt_id2sz(conn_rec *c, gnutls_x509_crt_t cert, gnutls_datum_t *key) {
+    gnutls_datum_t id;
+    id.data = NULL;
+    id.size = 0;
+    size_t idlen;
+
+    gnutls_x509_crt_get_fingerprint(cert, GNUTLS_DIG_SHA512, id.data, &idlen);
+
+    //if we got no size then fail this function call.
+    if(!(id.size = idlen)) {
+        return -1;
+    }
+
+    id.data = gnutls_malloc(id.size);
+    if(!id.data) {
+        return -1;
+    }
+
+    if(0 > gnutls_x509_crt_get_fingerprint(cert, GNUTLS_DIG_SHA512, id.data, &idlen) ) {
+        gnutls_free(id.data);
+        return -1;
+    }
+
+    char *sz = mgs_util_bin2hex_p(c->pool, (char*)id.data, id.size);
+
+    gnutls_free(id.data);
+
+    if (sz == NULL) {
+        return -1;
+    }
+
+    key->data = (unsigned char *)apr_psprintf(c->pool,
+            MC_TAG "ocsp:" "%s",
+            sz);
+    key->size = strlen((char *)key->data);
+
+    if(!key->data) {
+        return -1;
+    }
+
+    return 0;
+}
+
 #define CTIME "%b %d %k:%M:%S %Y %Z"
 
 char *mgs_time2sz(time_t in_time, char *str, int strsize) {
