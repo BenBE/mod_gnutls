@@ -139,7 +139,10 @@ gnutls_datum_t mgs_cache_fetch(mgs_handle_t *ctxt, gnutls_datum_t key, apr_time_
         return data;
     }
 
-    ctxt->sc->cache_provider->retrieve(
+    data.size = 65536;
+    data.data = apr_pcalloc(ctxt->c->pool, data.size);
+
+    int rv = ctxt->sc->cache_provider->retrieve(
         ctxt->sc->cache_context,
         ctxt->c->base_server,
         key.data,
@@ -149,23 +152,10 @@ gnutls_datum_t mgs_cache_fetch(mgs_handle_t *ctxt, gnutls_datum_t key, apr_time_
         ctxt->c->pool
         );
 
-    if(data.size) {
-        data.data = apr_pcalloc(ctxt->c->pool, data.size);
-    } else {
+    if(APR_SUCCESS != rv) {
         data.data = NULL;
         data.size = 0;
-        return data;
     }
-
-    ctxt->sc->cache_provider->retrieve(
-        ctxt->sc->cache_context,
-        ctxt->c->base_server,
-        key.data,
-        key.size,
-        data.data,
-        &data.size,
-        ctxt->c->pool
-        );
 
     return data;
 }
