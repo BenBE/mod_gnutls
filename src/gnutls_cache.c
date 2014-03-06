@@ -326,11 +326,29 @@ gnutls_datum_t mgs_cache_ocsp_fetch(void *baton, gnutls_x509_crt_t cert) {
         return data;
     }
 
-    gnutls_datum_t cert_id = {NULL, 0};
-    if(0 > mgs_crt_id2sz(ctxt->c, cert, &cert_id)) {
+    /* Read the server configuration */
+    mgs_srvconf_rec* sc = ctxt->sc;
+    if(!sc) {
         return data;
     }
 
+    /* What's the internal server we belong to? */
+    server_rec* s = ctxt->c->base_server;
+    if(!s) {
+        return data;
+    }
+
+    gnutls_datum_t cert_id = {NULL, 0};
+    if(0 > mgs_crt_id2sz(ctxt->c, cert, &cert_id)) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                "Could not convert certificate into corresponding ID for cache request concerning certificate for '%s:%d'.",
+                s->server_hostname, s->port);
+        return data;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+            "Trying to fetch OCSP response %s [%d] for '%s:%d'.",
+            cert_id.data, cert_id.size, s->server_hostname, s->port);
     return mgs_cache_fetch(ctxt, cert_id, NULL);
 }
 
@@ -340,11 +358,29 @@ int mgs_cache_ocsp_store(void *baton, gnutls_x509_crt_t cert, gnutls_datum_t dat
         return -1;
     }
 
-    gnutls_datum_t cert_id = {NULL, 0};
-    if(0 > mgs_crt_id2sz(ctxt->c, cert, &cert_id)) {
+    /* Read the server configuration */
+    mgs_srvconf_rec* sc = ctxt->sc;
+    if(!sc) {
         return -1;
     }
 
+    /* What's the internal server we belong to? */
+    server_rec* s = ctxt->c->base_server;
+    if(!s) {
+        return -1;
+    }
+
+    gnutls_datum_t cert_id = {NULL, 0};
+    if(0 > mgs_crt_id2sz(ctxt->c, cert, &cert_id)) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                "Could not convert certificate into corresponding ID for cache request concerning certificate for '%s:%d'.",
+                s->server_hostname, s->port);
+        return -1;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+            "Trying to store OCSP response %s [%d] for '%s:%d'.",
+            cert_id.data, cert_id.size, s->server_hostname, s->port);
     return mgs_cache_store(ctxt, cert_id, data, 0);
 }
 
@@ -354,11 +390,29 @@ int mgs_cache_ocsp_delete(void *baton, gnutls_x509_crt_t cert) {
         return -1;
     }
 
-    gnutls_datum_t cert_id = {NULL, 0};
-    if(0 > mgs_crt_id2sz(ctxt->c, cert, &cert_id)) {
+    /* Read the server configuration */
+    mgs_srvconf_rec* sc = ctxt->sc;
+    if(!sc) {
         return -1;
     }
 
+    /* What's the internal server we belong to? */
+    server_rec* s = ctxt->c->base_server;
+    if(!s) {
+        return -1;
+    }
+
+    gnutls_datum_t cert_id = {NULL, 0};
+    if(0 > mgs_crt_id2sz(ctxt->c, cert, &cert_id)) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                "Could not convert certificate into corresponding ID for cache request concerning certificate for '%s:%d'.",
+                s->server_hostname, s->port);
+        return -1;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+            "Trying to remove OCSP response %s for '%s:%d'.",
+            cert_id.data, s->server_hostname, s->port);
     return mgs_cache_delete(ctxt, cert_id);
 }
 
