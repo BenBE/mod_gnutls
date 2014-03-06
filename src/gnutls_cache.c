@@ -181,6 +181,10 @@ int mgs_cache_delete(mgs_handle_t *ctxt, gnutls_datum_t key) {
 int mgs_cache_post_config(apr_pool_t * p, server_rec * s,
         mgs_srvconf_rec * sc) {
 
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+            "Post-Configuration of Shared Object Cache for '%s:%d'.",
+            s->server_hostname, s->port);
+
     /* if GnuTLSCache was never explicitly set: */
     if (sc->cache_type == mgs_cache_unset) {
         sc->cache_type = mgs_cache_none;
@@ -199,16 +203,25 @@ int mgs_cache_post_config(apr_pool_t * p, server_rec * s,
     }
 
     if (sc->cache_type != mgs_cache_none) {
-//        return dbm_cache_post_config(p, s, sc);
-        sc->cache_provider->init(sc->cache_context, MC_TAG, NULL, s, p);
-        return 0;
+        int err;
+
+        err = sc->cache_provider->init(sc->cache_context, MC_TAG, NULL, s, p);
+
+        if(APR_SUCCESS != err) {
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                    "Failed post-configuration of Shared Object Cache for '%s:%d'.",
+                    s->server_hostname, s->port);
+
+            return err;
+        }
     }
+
     return 0;
 }
 
 int mgs_cache_child_init(apr_pool_t * p, server_rec * s, mgs_srvconf_rec * sc) {
     if (sc->cache_type != mgs_cache_none) {
-        return 0;
+        return sc->cache_provider->init(sc->cache_context, MC_TAG, NULL, s, p);
     }
 
     return 0;

@@ -710,6 +710,11 @@ void *mgs_config_server_merge(apr_pool_t *p, void *BASE, void *ADD) {
     gnutls_srvconf_merge(priorities, NULL);
     gnutls_srvconf_merge(dh_params, NULL);
 
+    gnutls_srvconf_merge(cache_type, mgs_cache_unset);
+    gnutls_srvconf_merge(cache_config, NULL);
+    gnutls_srvconf_merge(cache_provider, NULL);
+    gnutls_srvconf_merge(cache_context, NULL);
+
     /* FIXME: the following items are pre-allocated, and should be
      * properly disposed of before assigning in order to avoid leaks;
      * so at the moment, we can't actually have them in the config.
