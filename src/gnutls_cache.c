@@ -117,7 +117,7 @@ int mgs_crt_id2sz(conn_rec *c, gnutls_x509_crt_t cert, gnutls_datum_t *key) {
     }
 
     key->data = (unsigned char *)apr_psprintf(c->pool,
-            MC_TAG "ocsp:" "%s",
+            MC_TAG ":ocsp:" "%s",
             sz);
     key->size = strlen((char *)key->data);
 
