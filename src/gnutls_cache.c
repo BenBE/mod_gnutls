@@ -69,7 +69,7 @@ int mgs_session_id2sz(conn_rec *c, char *id, int idlen, gnutls_datum_t *key) {
     }
 
     key->data = (unsigned char *)apr_psprintf(c->pool,
-            MC_TAG ":session:" "%s:%04X:%s",
+            "%s:%04X:%s" ":session:" MC_TAG,
             c->base_server->server_hostname,
             c->base_server->port, sz);
     key->size = strlen((char *)key->data);
@@ -117,7 +117,7 @@ int mgs_crt_id2sz(conn_rec *c, gnutls_x509_crt_t cert, gnutls_datum_t *key) {
     }
 
     key->data = (unsigned char *)apr_psprintf(c->pool,
-            MC_TAG ":ocsp:" "%s",
+            "%s" ":ocsp:" MC_TAG,
             sz);
     key->size = strlen((char *)key->data);
 
