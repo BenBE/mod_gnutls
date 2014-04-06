@@ -387,7 +387,7 @@ const char *mgs_set_cache_timeout(cmd_parms * parms, void *dummy,
     } else if (argint == 0) {
         sc->cache_timeout = 0;
     } else {
-        sc->cache_timeout = apr_time_from_sec(argint);
+        sc->cache_timeout = argint;
     }
 
     return NULL;

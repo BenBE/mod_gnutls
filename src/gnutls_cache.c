@@ -156,7 +156,7 @@ int mgs_cache_store(mgs_handle_t *ctxt, gnutls_datum_t key, gnutls_datum_t data,
     }
 
     if(0 == expire) {
-        expire = apr_time_now() + apr_time_sec(ctxt->sc->cache_timeout);
+        expire = apr_time_now() + apr_time_from_sec(ctxt->sc->cache_timeout);
     }
 
     return ctxt->sc->cache_provider->store(
@@ -237,8 +237,8 @@ int mgs_cache_post_config(apr_pool_t * p, server_rec * s,
         sc->cache_type = mgs_cache_none;
     }
     /* if GnuTLSCacheTimeout was never explicitly set: */
-    if (sc->cache_timeout == -1) {
-        sc->cache_timeout = apr_time_from_sec(300);
+    if (sc->cache_timeout < 0) {
+        sc->cache_timeout = 300;
     }
 
     if (!sc->cache_provider) {
